@@ -10,7 +10,7 @@ If you have any feature suggestion, first check todo at the end of this file, if
 
 ## Installation
 ### Linux
-Notes: everything must be installed as root, including evdev 
+Notes: everything must be installed as root, including evdev  
 Dependencies that must be manually installed: python-evdev, hunspell or aspell  
 build.py and requirements.txt are for Windows.  
 #### Linux - Service
