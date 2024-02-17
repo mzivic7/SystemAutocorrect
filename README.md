@@ -3,7 +3,7 @@ Python script that automatically corrects text as you type.
 Uses hunspell or aspell to check for mistakes and obtain correction.  
 
 ## Usage
-This script can be run individually or as service on Linux and Windows 10 and 11, on Linux it works with Wayland and X11.
+This script can be run individually or as service on Linux and Windows 10 and 11, on Linux it works with Wayland and X11.  
 Aspell package is required on linux.  
 Aspell-win32 is required on windows.  
 If you have any feature suggestion, first check todo at the end of this file, if that feature is not there, open new issue.  
@@ -16,8 +16,8 @@ build.py and requirements.txt are for Windows.
 #### Linux - Service
 This will install dependencies and configure script as service that runs at startup.  
 ```sh
-git clone https://github.com/mzivic7/system-autocorrect.git
-cd system-autocorrect
+git clone https://github.com/mzivic7/SystemAutocorrect.git
+cd SystemAutocorrect
 sudo pip install evdev
 # if environment is externally managed:
 sudo pacman -S python-evdev
@@ -28,8 +28,8 @@ sudo install.sh
 #### Linux - Manual
 If you don't want it to be installed as service:  
 ```sh
-git clone https://github.com/mzivic7/system-autocorrect.git
-cd system-autocorrect
+git clone https://github.com/mzivic7/SystemAutocorrect.git
+cd SystemAutocorrect
 sudo pip install evdev
 # if environment is externally managed:
 sudo pacman -S python-evdev
