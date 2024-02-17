@@ -1,0 +1,11 @@
+[Unit]
+Description=Autocorrect
+After=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/bin/python3 /usr/local/sbin/autocorrect
+
+[Install]
+WantedBy=multi-user.target
