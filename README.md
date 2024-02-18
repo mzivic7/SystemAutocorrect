@@ -4,15 +4,17 @@ Uses hunspell or aspell to check for mistakes and obtain correction.
 
 ## Usage
 This script can be run individually or as service on Linux and Windows 10 and 11, on Linux it works with Wayland and X11.  
-Aspell package is required on linux.  
-Aspell-win32 is required on windows.  
+Aspell package is required on Linux.  
+Aspell-win32 is required on Windows.  
 If you have any feature suggestion, first check todo at the end of this file, if that feature is not there, open new issue.  
+Default toggle ON/OFF key combination is CTRL+SHIFT+E. It can be changed in config.  
 
 ## Installation
 ### Linux
-Notes: everything must be installed as root, including evdev  
-Dependencies that must be manually installed: python-evdev, hunspell or aspell  
+Notes: everything must be installed as root, including evdev.  
+Dependencies that must be manually installed: python-evdev, hunspell/aspell.  
 build.py and requirements.txt are for Windows.  
+config.ini is in /etc/autocorrect/config.ini  
 #### Linux - Service
 This will install dependencies and configure script as service that runs at startup.  
 ```sh
@@ -38,6 +40,9 @@ sudo pacman -S python-evdev
 sudo python autocorrect.py
 # or add it as system command:
 sudo cp autocorrect.py /usr/local/sbin/autocorrect
+# in that case, also create config:
+sudo mkdir /etc/autocorrect/
+sudo cp config.ini /etc/autocorrect/config.ini
 ```
 
 ### Windows
@@ -58,15 +63,16 @@ install.shm uninstall.sh and autocorrect.service are for Linux.
 Same as above, but instead `python build.py` run: `python autocorrect_win.py`
 
 ## Configuration
-For Windows, aspell installation path may be different, so check it in config.ini  
+For linux, config is searched for in 2 locations: `/etc/autocorrect/config.ini` and in same dir as script file.  
+For Windows, aspell installation path may be different, so make sure it is correct in config.ini  
 
 ## How it works
 Keyboard module is used to record typed text. After space or enter key is recorded, typed word is sent to aspell, who returns corrected word. Then using pynput: backspace is pressed to delete old word and type new one, really fast.  
 
 ## TODO
-on/off keybinding  
-Disable after click  
+Skip after click  
 Change language dictionary  
+Blacklist word  
 Automatically add word to dictionary  
 Record capital letters  
 Capitalize after ".  "  

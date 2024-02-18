@@ -5,18 +5,43 @@ import sys
 import subprocess
 import evdev
 from evdev import ecodes
+import configparser
+from ast import literal_eval as leval
 
+config = configparser.ConfigParser()
 
-past_len = 25
-spell_checker = "aspell"   # hunspell / aspell
-aspell_mode = "normal"   # ultra / fast / normal / slow / bad-spellers
-debug = False
-
+fail = 0
+for path in ("/etc/autocorrect/config.ini", "config.ini"):
+    try:
+        config.read(path)
+        past_len = config.getint("Main", "past_len")
+        aspell_mode = config.get("Main", "aspell_mode")
+        debug = leval(config.get("Main", "debug"))
+        spell_checker = config.get("Linux", "spell_checker")
+        try:
+            if config.get("Main", "toggle_key").upper() == "NONE":
+                toggle_key = [None]
+            else:
+                toggle_key = [ecodes.ecodes[f"KEY_{x}"] for x in config.get("Main", "toggle_key").upper().split(" + ")]
+        except:
+            toggle_key = [29, 42, 18]
+        break
+    except configparser.NoSectionError:
+        fail += 1
+        if fail >= 2:
+            past_len = 25
+            aspell_mode = "normal"
+            debug = False
+            spell_checker = "aspell"
+            toggle_key = [29, 42, 18]
 
 dev = None
 past = [None] * past_len
+keybind_past = [None] * len(toggle_key)
 backspace = None
 enable = True
+skip = False
+mod_keys = (ecodes.KEY_LEFTCTRL, ecodes.KEY_RIGHTCTRL)
 if spell_checker == "aspell":
     cmd = ["aspell", "-a", f"--sug-mode={aspell_mode}"]
 else:
@@ -74,10 +99,15 @@ else:
 # keyboard events
 ui = evdev.UInput.from_device(dev, name='virtual-keyboard-device')
 for event in dev.read_loop():
+    # release
     if event.type == ecodes.EV_KEY and event.value == 0:
+        keybind_past = [None] * len(toggle_key)
         if enable:
-            past.append(ecodes.KEY[event.code].replace("KEY_", ""))
-            past.pop(0)
+            if skip:
+                skip = False
+            else:
+                past.append(ecodes.KEY[event.code].replace("KEY_", ""))
+                past.pop(0)
             
             # reset when backspace
             if event.code == ecodes.KEY_BACKSPACE:
@@ -89,7 +119,7 @@ for event in dev.read_loop():
                     backspace = None
                 else:
                     # check word
-                    word = "".join([i for i in past if i is not None and len(i) == 1])
+                    word = "".join([x for x in past if x is not None and len(x) == 1])
                     if word:
                         correct = spell_check(word)
                     else:
@@ -106,13 +136,29 @@ for event in dev.read_loop():
                     elif debug:
                         print(f"Word {word} is OK")
                 past = [None] * past_len
+        elif skip:
+            skip = False
+    
+    # press
+    elif event.type == ecodes.EV_KEY and event.value == 1:
+        keybind_past.append(event.code)
+        keybind_past.pop(0)
         
-        if False and event.code == ecodes.KEY_LEFTCTRL:   # disabled for now
+        # toggle autocorrect
+        if keybind_past == toggle_key:
             enable = not enable
+            past = [None] * past_len
             if enable:
                 message = "Automatic text corrections enabled"
             else:
                 message = "Automatic text corrections disabled"
             notify_send("Autocorrect", message)
+        
+        # change language
+        # TODO
+        
+        if any(x in mod_keys for x in keybind_past[:-1]):
+            # key is not typed
+            skip = True
                 
 ui.close()
