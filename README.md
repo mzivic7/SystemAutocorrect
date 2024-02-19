@@ -6,8 +6,12 @@ Uses hunspell or aspell to check for mistakes and obtain correction.
 This script can be run individually or as service on Linux and Windows 10 and 11, on Linux it works with Wayland and X11.  
 Aspell package is required on Linux.  
 Aspell-win32 is required on Windows.  
-If you have any feature suggestion, first check todo at the end of this file, if that feature is not there, open new issue.  
-Default toggle ON/OFF key combination is CTRL+SHIFT+E. It can be changed in config.  
+Default toggle ON/OFF key combination is CTRL+SHIFT+E.  
+Default language cycle key combination is CTRL+SHIFT+R.  
+Default blacklist word key combination is CTRL+SHIFT+B.  
+To blacklist word, type it, but don't press space, then press key combination.  
+Blacklisted words are saved in `blacklist.json` which can be found next to `config.ini`.  
+
 
 ## Installation
 ### Linux
@@ -66,13 +70,22 @@ Same as above, but instead `python build.py` run: `python autocorrect_win.py`
 For linux, config is searched for in 2 locations: `/etc/autocorrect/config.ini` and in same dir as script file.  
 For Windows, aspell installation path may be different, so make sure it is correct in config.ini  
 
+### Adding languages
+!!! IMPORTANT !!! Languages that have irregular characters, with diacritics, etc. will cause autocorrect to crash. This will be fixed in future.  
+Language must be installed in order to be used with aspell.  
+For Linux: check (eg. aspell-en) with your package manager (also on AUR for Arch), alternatively languages can be downloaded [here](https://ftp.gnu.org/gnu/aspell/dict/0index.html).
+See readme in downloaded archivefor install instructions.
+For Windows: languages can be downloaded from [aspell-win32 repo](https://github.com/adamyg/aspell-win32).
+To install language, run downloaded exe file.  
+Added languages can be added in config.ini to be cycled when key combination is pressed.
+Leave only one language to use instead english.
+
 ## How it works
 Keyboard module is used to record typed text. After space or enter key is recorded, typed word is sent to aspell, who returns corrected word. Then using pynput: backspace is pressed to delete old word and type new one, really fast.  
 
 ## TODO
+!!! Support for diacritics and other keyboard layouts  
 Skip after click  
-Change language dictionary  
-Blacklist word  
 Automatically add word to dictionary  
 Record capital letters  
 Capitalize after ".  "  
