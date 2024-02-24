@@ -9,7 +9,8 @@ if sys.platform == "win32":
     shutil.rmtree('__pycache__')
     shutil.copytree('dist/', './', dirs_exist_ok=True)
     shutil.rmtree('dist')
-    shutil.move("config.ini", "Autocorrect/config.ini")
+    shutil.copy("config.ini", "Autocorrect/config.ini")
+    shutil.copytree('keymaps/', 'Autocorrect/', dirs_exist_ok=True)
 else:
     print("Building is only for Wildows.")
     sys.exit()

@@ -11,6 +11,11 @@ import os
 from ast import literal_eval as leval
 
 config = configparser.ConfigParser()
+special_keycodes = {"[": ecodes.KEY_LEFTBRACE, "]": ecodes.KEY_RIGHTBRACE, 
+                    ";": ecodes.KEY_SEMICOLON, "'": ecodes.KEY_APOSTROPHE,
+                    ",": ecodes.KEY_COMMA, ".": ecodes.KEY_DOT,
+                    "/": ecodes.KEY_SLASH, "\\": ecodes.KEY_BACKSLASH,
+                    "`": ecodes.KEY_GRAVE, "-": ecodes.KEY_MINUS, "=": ecodes.KEY_EQUAL}
 
 def read_key_comb(config, config_key, default):
     try:
@@ -30,6 +35,7 @@ for path in ("/etc/autocorrect/", ""):
         debug = leval(config.get("Main", "debug"))
         spell_checker = config.get("Linux", "spell_checker")
         languages = config.get("Main", "languages").replace(", ", ",").split(",")
+        keymaps = config.get("Main", "keymaps").replace(", ", ",").split(",")
         toggle_key = read_key_comb(config, "toggle_key", [29, 42, 18])
         cycle_key = read_key_comb(config, "cycle_key", [29, 42, 19])
         blacklist_key = read_key_comb(config, "blacklist_key", [29, 42, 48])
@@ -45,6 +51,7 @@ for path in ("/etc/autocorrect/", ""):
             cycle_key = [29, 42, 19]
             blacklist_key = [29, 42, 48]
             languages = ["en_US"]
+            keymaps = ["en_US"]
 
 mod_keys = (ecodes.KEY_LEFTCTRL, ecodes.KEY_RIGHTCTRL)
 if spell_checker == "aspell":
@@ -53,10 +60,10 @@ else:
     cmd = ["hunspell", "-a"]
 
 
-
 def spell_check(word):
     aspell = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     output, error = aspell.communicate(word.encode())
+    print(output)
     check = output.decode().split("\n")[1]
     if check == "*":
         return None
@@ -75,12 +82,16 @@ def press(ui, key):
     ui.write(ecodes.EV_KEY, key, 0)
     ui.syn()
 
-def type(ui, word):
+def type(ui, word, end=None):
+    global keymap
+    word = word.translate(keymap)
     for letter in word:
-        if letter == " ":
-            press(ui, ecodes.KEY_SPACE)
+        if letter in special_keycodes.keys():
+            press(ui, special_keycodes[letter])
         else:
             press(ui, ecodes.ecodes[f"KEY_{letter}"])
+    if end:
+        press(ui, end)
 
 def notify_send(header, message):
     proc = subprocess.Popen("echo | who | awk '{print $1}' | head -n1 ", shell=True, stdout=subprocess.PIPE)
@@ -106,6 +117,13 @@ def add_to_blacklist(word):
             json.dump(blacklist, f, indent=2)
     return blacklist
 
+def load_keymap(keymap):
+    if keymap is not None:
+        with open(path + "keymaps/" + keymap + ".json", "r") as f:
+            return str.maketrans(json.load(f))
+    else:
+        return str.maketrans({})
+
 
 dev = None
 past = [None] * past_len
@@ -115,6 +133,14 @@ enable = True
 skip = False
 lang = 0
 blacklist = add_to_blacklist(None)
+
+# load keymap and remove invalid keymaps
+keymaps = [None if x == "None" else x for x in keymaps if (os.path.exists(path + "keymaps/" + x + ".json") or x == "None")]
+if len(keymaps) > len(languages):
+    keymaps = keymaps[:len(languages)]
+if len(keymaps) < len(languages):
+    languages = languages[:len(keymaps)]
+keymap = load_keymap(keymaps[lang])
 
 # find keyboard
 devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
@@ -127,6 +153,7 @@ if not dev:
     sys.exit()
 else:
     print(f"Using device: {device.name}")
+
 
 # keyboard events
 ui = evdev.UInput.from_device(dev, name='virtual-keyboard-device')
@@ -168,7 +195,7 @@ for event in dev.read_loop():
                         # delete old word
                         delete(ui, len(word)+1)
                         # write corrected word
-                        type(ui, correct + " ")
+                        type(ui, correct, event.code)
                     elif debug:
                         print(f'Word "{word}" is OK')
                 past = [None] * past_len
@@ -196,7 +223,8 @@ for event in dev.read_loop():
             if lang >= len(languages):
                 lang = 0
             cmd = ["aspell", "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[lang]}"]
-            notify_send("Autocorrect", f"Changed language to {languages[lang]}")
+            keymap = load_keymap(keymaps[lang])
+            notify_send("Autocorrect", f"Changed language to {languages[lang]} and keymap to {keymaps[lang]}")
         
         # blacklist word
         if keybind_past == blacklist_key:

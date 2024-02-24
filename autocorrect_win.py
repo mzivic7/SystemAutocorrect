@@ -2,6 +2,7 @@ import time
 import keyboard
 import pynput
 import sys
+import os
 import subprocess
 import configparser
 import json
@@ -31,6 +32,7 @@ debug = leval(config.get("Main", "debug"))
 aspell_path = config.get("Windows", "aspell_path")
 toast = config.get("Windows", "toast")
 languages = config.get("Main", "languages").replace(", ", ",").split(",")
+keymaps = config.get("Main", "keymaps").replace(", ", ",").split(",")
 toggle_key = read_key_comb(config, "toggle_key", [Key.ctrl_l, Key.shift_l, "\x05"])
 cycle_key = read_key_comb(config, "cycle_key", [Key.ctrl_l, Key.shift_l, "\x12"])
 blacklist_key = read_key_comb(config, "blacklist_key", [Key.ctrl_l, Key.shift_l, "\x02"])
@@ -46,7 +48,10 @@ cmd = [aspell_path, "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[0]}"]
 def spell_check(word):
     aspell = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     output, error = aspell.communicate(word.encode())
-    check = output.decode().split("\n")[1]
+    try:
+        check = output.decode().split("\n")[1]
+    except Exception:
+        check = str(output).split("\\r\\n")[1]
     if check == "*":
         return None
     else:
@@ -64,12 +69,14 @@ def press(key):
     keyboard.press(key)
     keyboard.release(key)
 
-def type(word):
+def type(word, end=None):
+    global keymap
+    word = word.translate(keymap)
     for letter in word:
-        if letter == " ":
-            press("space")
-        else:
-            press(letter)
+        press(letter)
+    if end:
+        press(end)
+
 def notify_send(header, message):
     if toast == "win10":
         toast.show_toast(header, message, duration=5, threaded=True)
@@ -88,6 +95,12 @@ def add_to_blacklist(word):
             json.dump(blacklist, f, indent=2)
     return blacklist
 
+def load_keymap(keymap):
+    if keymap is not None:
+        with open("keymaps/" + keymap + ".json", "r") as f:
+            return str.maketrans(json.load(f))
+    else:
+        return str.maketrans({})
 
 
 dev = None
@@ -98,6 +111,15 @@ enable = True
 skip = False
 lang = 0
 blacklist = add_to_blacklist(None)
+
+# load keymap and remove invalid keymaps
+keymaps = [None if x == "None" else x for x in keymaps if (os.path.exists("keymaps/" + x + ".json") or x == "None")]
+if len(keymaps) > len(languages):
+    keymaps = keymaps[:len(languages)]
+if len(keymaps) < len(languages):
+    languages = languages[:len(keymaps)]
+keymap = load_keymap(keymaps[lang])
+
 
 # keyboard events
 def on_release(key):
@@ -140,7 +162,10 @@ def on_release(key):
                     # delete old word
                     delete(len(word)+1)
                     # write corrected word
-                    type(correct + " ")
+                    if key == pynput.keyboard.Key.space:
+                        type(correct, "space")
+                    elif key == pynput.keyboard.Key.enter:
+                        type(correct, "enter")
                 elif debug:
                     print(f"Word {word} is OK")
             past = [None] * past_len
@@ -148,7 +173,7 @@ def on_release(key):
         skip = False
 
 def on_press(key):
-    global enable, past, keybind_past, skip, cmd, lang, blacklist
+    global enable, past, keybind_past, skip, cmd, lang, blacklist, keymap
     try:
         key = key.char.lower()
     except AttributeError:
@@ -156,7 +181,6 @@ def on_press(key):
     if keybind_past[-1] != key:
         keybind_past.append(key)
         keybind_past.pop(0)
-        print(keybind_past)
         # toggle autocorrect
         if keybind_past == toggle_key:
             enable = not enable
@@ -173,7 +197,8 @@ def on_press(key):
             if lang >= len(languages):
                 lang = 0
             cmd = [aspell_path, "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[lang]}"]
-            notify_send("Autocorrect", f"Changed language to {languages[lang]}")
+            keymap = load_keymap(keymaps[lang])
+            notify_send("Autocorrect", f"Changed language to {languages[lang]} and keymap to {keymaps[lang]}")
         
         # blacklist word
         if keybind_past == blacklist_key:
