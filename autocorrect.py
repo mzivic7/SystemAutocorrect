@@ -168,8 +168,8 @@ for event in dev.read_loop():
                 past.append(ecodes.KEY[event.code].replace("KEY_", ""))
                 past.pop(0)
             
-            # reset when backspace
-            if event.code == ecodes.KEY_BACKSPACE:
+            # reset when: backspace, arrows
+            if event.code in (ecodes.KEY_BACKSPACE, ecodes.KEY_LEFT, ecodes.KEY_RIGHT, ecodes.KEY_UP, ecodes.KEY_DOWN):
                 backspace = True
             
             # space and enter trigger

@@ -135,8 +135,8 @@ def on_release(key):
         except AttributeError:
             pass
         
-        # reset when backspace
-        if key == pynput.keyboard.Key.backspace:
+        # reset when: backspace, arrows
+        if key in (pynput.keyboard.Key.backspace, pynput.keyboard.Key.left, pynput.keyboard.Key.right, pynput.keyboard.Key.up, pynput.keyboard.Key.down):
             backspace = True
         
         # space and enter trigger

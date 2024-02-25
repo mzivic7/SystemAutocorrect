@@ -96,7 +96,6 @@ Keyboard module is used to record typed text. After space or enter key is record
 Special characters on input  
 Custom replacements  
 Skip after click  
-Skip after arrows  
 Automatically add word to dictionary  
 Record capital letters  
 Capitalize after ".  "  
