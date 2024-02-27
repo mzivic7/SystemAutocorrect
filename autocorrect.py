@@ -11,7 +11,7 @@ import os
 from ast import literal_eval as leval
 
 config = configparser.ConfigParser()
-special_keycodes = {"[": ecodes.KEY_LEFTBRACE, "]": ecodes.KEY_RIGHTBRACE, 
+special_keycodes = {"[": ecodes.KEY_LEFTBRACE, "]": ecodes.KEY_RIGHTBRACE,
                     ";": ecodes.KEY_SEMICOLON, "'": ecodes.KEY_APOSTROPHE,
                     ",": ecodes.KEY_COMMA, ".": ecodes.KEY_DOT,
                     "/": ecodes.KEY_SLASH, "\\": ecodes.KEY_BACKSLASH,
@@ -120,9 +120,10 @@ def add_to_blacklist(word):
 def load_keymap(keymap):
     if keymap is not None:
         with open(path + "keymaps/" + keymap + ".json", "r") as f:
-            return str.maketrans(json.load(f))
+            keymap_raw = json.load(f)
+            return str.maketrans(keymap_raw), keymap_raw
     else:
-        return str.maketrans({})
+        return str.maketrans({}), {}
 
 
 dev = None
@@ -140,7 +141,7 @@ if len(keymaps) > len(languages):
     keymaps = keymaps[:len(languages)]
 if len(keymaps) < len(languages):
     languages = languages[:len(keymaps)]
-keymap = load_keymap(keymaps[lang])
+keymap, raw_keymap = load_keymap(keymaps[lang])
 
 # find keyboard
 devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
@@ -165,13 +166,21 @@ for event in dev.read_loop():
             if skip:
                 skip = False
             else:
-                past.append(ecodes.KEY[event.code].replace("KEY_", ""))
+                if event.code in special_keycodes.values():
+                    letter = [x for x in special_keycodes if special_keycodes[x] == event.code][0]
+                    if letter in raw_keymap.values():
+                        key = [x for x in raw_keymap if raw_keymap[x] == letter][0]
+                        past.append(key)
+                    else:
+                        past.append(ecodes.KEY[event.code].replace("KEY_", ""))
+                else:
+                    past.append(ecodes.KEY[event.code].replace("KEY_", ""))
                 past.pop(0)
-            
+
             # reset when: backspace, arrows
             if event.code in (ecodes.KEY_BACKSPACE, ecodes.KEY_LEFT, ecodes.KEY_RIGHT, ecodes.KEY_UP, ecodes.KEY_DOWN):
                 backspace = True
-            
+
             # space and enter trigger
             elif event.code in (ecodes.KEY_SPACE, ecodes.KEY_ENTER):
                 if backspace:
@@ -187,7 +196,7 @@ for event in dev.read_loop():
                             print(f'Word "{word}" is found in blacklist')
                     else:
                         correct = None
-                    
+
                     # if word is bad
                     if correct:
                         if debug:
@@ -201,12 +210,12 @@ for event in dev.read_loop():
                 past = [None] * past_len
         elif skip:
             skip = False
-    
+
     # press
     elif event.type == ecodes.EV_KEY and event.value == 1:
         keybind_past.append(event.code)
         keybind_past.pop(0)
-        
+
         # toggle autocorrect
         if keybind_past == toggle_key:
             enable = not enable
@@ -216,25 +225,25 @@ for event in dev.read_loop():
             else:
                 message = "Automatic text corrections disabled"
             notify_send("Autocorrect", message)
-        
+
         # change lang
         if keybind_past == cycle_key and spell_checker == "aspell":
             lang += 1
             if lang >= len(languages):
                 lang = 0
             cmd = ["aspell", "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[lang]}"]
-            keymap = load_keymap(keymaps[lang])
+            keymap, raw_keymap = load_keymap(keymaps[lang])
             notify_send("Autocorrect", f"Changed language to {languages[lang]} and keymap to {keymaps[lang]}")
-        
+
         # blacklist word
         if keybind_past == blacklist_key:
             word = "".join([x for x in past if x is not None and len(x) == 1])
             past = [None] * past_len
             blacklist = add_to_blacklist(word)
             notify_send("Autocorrect", f'Word "{word}" added to blacklist')
-        
+
         if any(x in mod_keys for x in keybind_past[:-1]):
             # key is not typed
             skip = True
-                
+
 ui.close()

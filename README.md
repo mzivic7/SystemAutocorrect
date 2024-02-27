@@ -93,7 +93,6 @@ WARNING: On Windows, aspell may return text in wrong encoding, which will cause 
 Keyboard module is used to record typed text. After space or enter key is recorded, typed word is sent to aspell, who returns corrected word. Then using pynput: backspace is pressed to delete old word and type new one, really fast.  
 
 ## TODO
-Special characters on input  
 Custom replacements  
 Skip after click  
 Automatically add word to dictionary  

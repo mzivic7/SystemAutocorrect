@@ -19,6 +19,6 @@ Replacement can be any of regular letters (a,b,c) or one following signs:
 Note that `\` must be written as double backslash: `\\`  
 
 ### Contributing
-If you want yor keymap to be added to this project:  
+If you want your keymap to be added to this project:  
 First, test your keymap.
 Open new issue, specify language and keyboard layout, and uplaod your keymap.

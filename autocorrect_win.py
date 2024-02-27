@@ -21,7 +21,7 @@ def read_key_comb(config, config_key, default):
             key_comb = config.get("Main", config_key).upper().split(" + ")
             ctrl = "LEFTCTRL" in key_comb or "RIGHTCTRL" in key_comb
             return [keycode[x] if len(x)>1 else (ctrl_keycode[ord(x.lower())-97] if ctrl else x.lower()) for x in key_comb]
-             
+
     except:
         return default
 
@@ -97,10 +97,11 @@ def add_to_blacklist(word):
 
 def load_keymap(keymap):
     if keymap is not None:
-        with open("keymaps/" + keymap + ".json", "r") as f:
-            return str.maketrans(json.load(f))
+        with open(path + "keymaps/" + keymap + ".json", "r") as f:
+            keymap_raw = json.load(f)
+            return str.maketrans(keymap_raw), keymap_raw
     else:
-        return str.maketrans({})
+        return str.maketrans({}), {}
 
 
 dev = None
@@ -118,7 +119,7 @@ if len(keymaps) > len(languages):
     keymaps = keymaps[:len(languages)]
 if len(keymaps) < len(languages):
     languages = languages[:len(keymaps)]
-keymap = load_keymap(keymaps[lang])
+keymap, raw_keymap = load_keymap(keymaps[lang])
 
 
 # keyboard events
@@ -130,15 +131,19 @@ def on_release(key):
             if skip:
                 skip = False
             else:
-                past.append(key.char)
+                if key.char in raw_keymap.values():
+                    key = [x for x in raw_keymap if raw_keymap[x] == letter][0]
+                    past.append(key)
+                else:
+                    past.append(key.char)
                 past.pop(0)
         except AttributeError:
             pass
-        
+
         # reset when: backspace, arrows
         if key in (pynput.keyboard.Key.backspace, pynput.keyboard.Key.left, pynput.keyboard.Key.right, pynput.keyboard.Key.up, pynput.keyboard.Key.down):
             backspace = True
-        
+
         # space and enter trigger
         elif key in (pynput.keyboard.Key.space, pynput.keyboard.Key.enter):
             if backspace:
@@ -154,7 +159,7 @@ def on_release(key):
                         print(f'Word "{word}" is found in blacklist')
                 else:
                     correct = None
-                
+
                 # if word is bad
                 if correct:
                     if debug:
@@ -173,7 +178,7 @@ def on_release(key):
         skip = False
 
 def on_press(key):
-    global enable, past, keybind_past, skip, cmd, lang, blacklist, keymap
+    global enable, past, keybind_past, skip, cmd, lang, blacklist, keymap, keymap_raw
     try:
         key = key.char.lower()
     except AttributeError:
@@ -190,23 +195,23 @@ def on_press(key):
             else:
                 message = "Automatic text corrections disabled"
             notify_send("Autocorrect", message)
-        
+
         # change language
         if keybind_past == cycle_key:
             lang += 1
             if lang >= len(languages):
                 lang = 0
             cmd = [aspell_path, "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[lang]}"]
-            keymap = load_keymap(keymaps[lang])
+            keymap, raw_keymap = load_keymap(keymaps[lang])
             notify_send("Autocorrect", f"Changed language to {languages[lang]} and keymap to {keymaps[lang]}")
-        
+
         # blacklist word
         if keybind_past == blacklist_key:
             word = "".join([x for x in past if x is not None and len(x) == 1])
             past = [None] * past_len
             blacklist = add_to_blacklist(word)
             notify_send("Autocorrect", f'Word "{word}" added to blacklist')
-        
+
         if any(x in mod_keys for x in keybind_past[:-1]):
             # key is not typed
             skip = True
