@@ -6,6 +6,7 @@ sudo chmod 644 /etc/systemd/system/autocorrect.service
 sudo mkdir /etc/autocorrect/
 sudo cp config.ini /etc/autocorrect/config.ini
 sudo cp -r keymaps /etc/autocorrect/
+sudo cp -r custom /etc/autocorrect/
 sudo chown root:root /etc/systemd/system/autocorrect.service /usr/local/sbin/autocorrect
 sudo systemctl enable autocorrect.service
 sudo systemctl start autocorrect.service

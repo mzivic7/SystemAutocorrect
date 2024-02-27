@@ -33,6 +33,7 @@ aspell_path = config.get("Windows", "aspell_path")
 toast = config.get("Windows", "toast")
 languages = config.get("Main", "languages").replace(", ", ",").split(",")
 keymaps = config.get("Main", "keymaps").replace(", ", ",").split(",")
+keymaps = config.get("Main", "custom").replace(", ", ",").split(",")
 toggle_key = read_key_comb(config, "toggle_key", [Key.ctrl_l, Key.shift_l, "\x05"])
 cycle_key = read_key_comb(config, "cycle_key", [Key.ctrl_l, Key.shift_l, "\x12"])
 blacklist_key = read_key_comb(config, "blacklist_key", [Key.ctrl_l, Key.shift_l, "\x02"])
@@ -103,6 +104,13 @@ def load_keymap(keymap):
     else:
         return str.maketrans({}), {}
 
+def load_custom(custom):
+    if custom is not None:
+        with open(path + "custom/" + custom + ".json", "r") as f:
+            return {k.upper(): v for k, v in json.load(f).items()}
+    else:
+        return {}
+
 
 dev = None
 past = [None] * past_len
@@ -121,6 +129,13 @@ if len(keymaps) < len(languages):
     languages = languages[:len(keymaps)]
 keymap, raw_keymap = load_keymap(keymaps[lang])
 
+# load custom replacements and remove invalid ones
+custom = [None if x == "None" else x for x in custom if (os.path.exists(path + "custom/" + x + ".json") or x == "None")]
+if len(custom) > len(custom):
+    custom = keymaps[:len(custom)]
+if len(keymaps) < len(languages):
+    custom.append(None)
+custom_repl = load_custom(custom[lang])
 
 # keyboard events
 def on_release(key):
@@ -152,11 +167,16 @@ def on_release(key):
                 # check word
                 word = "".join([x for x in past if x is not None and len(x) == 1])
                 if word:
-                    if word not in blacklist:
-                        correct = spell_check(word)
-                    elif debug:
+                    if word in blacklist:
                         correct = None
-                        print(f'Word "{word}" is found in blacklist')
+                        if debug:
+                            print(f'Word "{word}" is found in blacklist')
+                    elif word.upper() in custom_repl.keys():
+                        correct = custom_repl[word.upper()]
+                        if debug:
+                            print(f'Word "{word}" is found in custom replacement')
+                    else:
+                        correct = spell_check(word)
                 else:
                     correct = None
 
@@ -178,7 +198,7 @@ def on_release(key):
         skip = False
 
 def on_press(key):
-    global enable, past, keybind_past, skip, cmd, lang, blacklist, keymap, keymap_raw
+    global enable, past, keybind_past, skip, cmd, lang, blacklist, keymap, keymap_raw, custom_repl
     try:
         key = key.char.lower()
     except AttributeError:
@@ -203,6 +223,7 @@ def on_press(key):
                 lang = 0
             cmd = [aspell_path, "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[lang]}"]
             keymap, raw_keymap = load_keymap(keymaps[lang])
+            custom_repl = load_custom(custom[lang])
             notify_send("Autocorrect", f"Changed language to {languages[lang]} and keymap to {keymaps[lang]}")
 
         # blacklist word
@@ -218,3 +239,4 @@ def on_press(key):
 
 with pynput.keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
     listener.join()
+

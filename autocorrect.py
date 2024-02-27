@@ -15,7 +15,8 @@ special_keycodes = {"[": ecodes.KEY_LEFTBRACE, "]": ecodes.KEY_RIGHTBRACE,
                     ";": ecodes.KEY_SEMICOLON, "'": ecodes.KEY_APOSTROPHE,
                     ",": ecodes.KEY_COMMA, ".": ecodes.KEY_DOT,
                     "/": ecodes.KEY_SLASH, "\\": ecodes.KEY_BACKSLASH,
-                    "`": ecodes.KEY_GRAVE, "-": ecodes.KEY_MINUS, "=": ecodes.KEY_EQUAL}
+                    "`": ecodes.KEY_GRAVE, "-": ecodes.KEY_MINUS,
+                    "=": ecodes.KEY_EQUAL, " ": ecodes.KEY_SPACE}
 
 def read_key_comb(config, config_key, default):
     try:
@@ -36,6 +37,7 @@ for path in ("/etc/autocorrect/", ""):
         spell_checker = config.get("Linux", "spell_checker")
         languages = config.get("Main", "languages").replace(", ", ",").split(",")
         keymaps = config.get("Main", "keymaps").replace(", ", ",").split(",")
+        custom = config.get("Main", "custom").replace(", ", ",").split(",")
         toggle_key = read_key_comb(config, "toggle_key", [29, 42, 18])
         cycle_key = read_key_comb(config, "cycle_key", [29, 42, 19])
         blacklist_key = read_key_comb(config, "blacklist_key", [29, 42, 48])
@@ -52,6 +54,7 @@ for path in ("/etc/autocorrect/", ""):
             blacklist_key = [29, 42, 48]
             languages = ["en_US"]
             keymaps = ["en_US"]
+            custom = ["en_US"]
 
 mod_keys = (ecodes.KEY_LEFTCTRL, ecodes.KEY_RIGHTCTRL)
 if spell_checker == "aspell":
@@ -63,7 +66,6 @@ else:
 def spell_check(word):
     aspell = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     output, error = aspell.communicate(word.encode())
-    print(output)
     check = output.decode().split("\n")[1]
     if check == "*":
         return None
@@ -125,6 +127,13 @@ def load_keymap(keymap):
     else:
         return str.maketrans({}), {}
 
+def load_custom(custom):
+    if custom is not None:
+        with open(path + "custom/" + custom + ".json", "r") as f:
+            return {k.upper(): v.upper() for k, v in json.load(f).items()}
+    else:
+        return {}
+
 
 dev = None
 past = [None] * past_len
@@ -142,6 +151,14 @@ if len(keymaps) > len(languages):
 if len(keymaps) < len(languages):
     languages = languages[:len(keymaps)]
 keymap, raw_keymap = load_keymap(keymaps[lang])
+
+# load custom replacements and remove invalid ones
+custom = [None if x == "None" else x for x in custom if (os.path.exists(path + "custom/" + x + ".json") or x == "None")]
+if len(custom) > len(custom):
+    custom = keymaps[:len(custom)]
+if len(keymaps) < len(languages):
+    custom.append(None)
+custom_repl = load_custom(custom[lang])
 
 # find keyboard
 devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
@@ -189,11 +206,16 @@ for event in dev.read_loop():
                     # check word
                     word = "".join([x for x in past if x is not None and len(x) == 1])
                     if word:
-                        if word not in blacklist:
-                            correct = spell_check(word)
-                        elif debug:
+                        if word in blacklist:
                             correct = None
-                            print(f'Word "{word}" is found in blacklist')
+                            if debug:
+                                print(f'Word "{word}" is found in blacklist')
+                        elif word.upper() in custom_repl.keys():
+                            correct = custom_repl[word.upper()]
+                            if debug:
+                                print(f'Word "{word}" is found in custom replacement')
+                        else:
+                            correct = spell_check(word)
                     else:
                         correct = None
 
@@ -233,6 +255,7 @@ for event in dev.read_loop():
                 lang = 0
             cmd = ["aspell", "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[lang]}"]
             keymap, raw_keymap = load_keymap(keymaps[lang])
+            custom_repl = load_custom(custom[lang])
             notify_send("Autocorrect", f"Changed language to {languages[lang]} and keymap to {keymaps[lang]}")
 
         # blacklist word
@@ -247,3 +270,4 @@ for event in dev.read_loop():
             skip = True
 
 ui.close()
+
