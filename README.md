@@ -56,7 +56,7 @@ sudo cp config.ini /etc/autocorrect/config.ini
 When run, no window will be open, so if you want to stop it, you must kill it from task manager.  
 Dependency that must be manually installed: [aspell-win32](https://github.com/adamyg/aspell-win32). Don't install x64 version.  
 Dictionary for specific language must be installed alongside aspell base program.  
-Autocorrect WILL NOT WORK without aspell and dictionary.  
+Autocorrect can work without aspell, only with custom replacements, just set aspell mode to `OFF` in settings.  
 install.shm uninstall.sh and autocorrect.service are for Linux.  
 
 #### Windows - Build
@@ -71,7 +71,7 @@ Same as above, but instead `python build.py` run: `python autocorrect_win.py`
 
 ## Configuration
 For linux, config is searched for in 2 locations: `/etc/autocorrect/config.ini` and in same dir as script file.  
-For Windows, aspell installation path may be different, so make sure it is correct in config.ini  
+For Windows, `config.ini` must stay next to executable. Aspell installation path may be different, so make sure it is correct in config.  
 
 ### Adding languages
 Languages that have irregular characters, with diacritics, etc. must have kaymap.  
@@ -105,4 +105,3 @@ Skip after click
 Automatically add word to dictionary  
 Record capital letters  
 Capitalize after ".  "  
-

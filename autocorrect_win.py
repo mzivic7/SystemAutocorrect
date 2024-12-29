@@ -1,28 +1,27 @@
-import time
-import keyboard
-import pynput
-import sys
-import os
-import subprocess
 import configparser
 import json
+import os
+import subprocess
 from ast import literal_eval as leval
+
+import keyboard
+import pynput
 from pynput.keyboard import Key
 
 config = configparser.ConfigParser()
 keycode = {"LEFTCTRL": Key.ctrl_l, "RIGHTCTRL": Key.ctrl_r, "LEFTSHIFT": Key.shift_l, "RIGHTSHIFT": Key.shift_r, "LEFTALT": Key.alt_l, "RIGHTALT": Key.alt_r}
 ctrl_keycode = ["\x01", "\x02", "\x03", "\x04", "\x05", "\x06", "\x07", "\x08", "\t", "\n", "\x0b", "\x0c", "\r", "\x0e", "\x0f", "\x10", "\x11", "\x12", "\x13", "\x14", "\x15", "\x16", "\x17", "\x18", "\x19", "\x1a"]
 
+
 def read_key_comb(config, config_key, default):
+    """Read key combinations from config"""
     try:
         if config.get("Main", config_key).upper() == "NONE":
             return [None]
-        else:
-            key_comb = config.get("Main", config_key).upper().split(" + ")
-            ctrl = "LEFTCTRL" in key_comb or "RIGHTCTRL" in key_comb
-            return [keycode[x] if len(x)>1 else (ctrl_keycode[ord(x.lower())-97] if ctrl else x.lower()) for x in key_comb]
-
-    except:
+        key_comb = config.get("Main", config_key).upper().split(" + ")
+        ctrl = "LEFTCTRL" in key_comb or "RIGHTCTRL" in key_comb
+        return [keycode[x] if len(x)>1 else (ctrl_keycode[ord(x.lower())-97] if ctrl else x.lower()) for x in key_comb]
+    except Exception:
         return default
 
 config.read("config.ini")
@@ -37,6 +36,7 @@ keymaps = config.get("Main", "custom").replace(", ", ",").split(",")
 toggle_key = read_key_comb(config, "toggle_key", [Key.ctrl_l, Key.shift_l, "\x05"])
 cycle_key = read_key_comb(config, "cycle_key", [Key.ctrl_l, Key.shift_l, "\x12"])
 blacklist_key = read_key_comb(config, "blacklist_key", [Key.ctrl_l, Key.shift_l, "\x02"])
+custom = config.get("Main", "custom").replace(", ", ",").split(",")
 
 if toast == "win10":
     from win10toast import ToastNotifier
@@ -46,7 +46,14 @@ elif toast == "win11":
 
 mod_keys = (pynput.keyboard.Key.ctrl_l, pynput.keyboard.Key.ctrl_r)
 cmd = [aspell_path, "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[0]}"]
+if aspell_mode == "OFF":
+    use_aspell = False
+else:
+    use_aspell = True
+
+
 def spell_check(word):
+    """Spellcheck a word with aspell and return best correction"""
     aspell = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     output, error = aspell.communicate(word.encode())
     try:
@@ -55,22 +62,27 @@ def spell_check(word):
         check = str(output).split("\\r\\n")[1]
     if check == "*":
         return None
-    else:
-        try:
-            return check.split(": ")[1].split(", ")[0]
-        except Exception:
-            return None
+    try:
+        return check.split(": ")[1].split(", ")[0]
+    except Exception:
+        return None
+
 
 def delete(num):
+    """Delete number of keys"""
     for _ in range(num):
         keyboard.press("backspace")
         keyboard.release("backspace")
 
+
 def press(key):
+    """Press a single key"""
     keyboard.press(key)
     keyboard.release(key)
 
-def type(word, end=None):
+
+def type_word(word, end=None):
+    """Type a word"""
     global keymap
     word = word.translate(keymap)
     for letter in word:
@@ -78,13 +90,17 @@ def type(word, end=None):
     if end:
         press(end)
 
+
 def notify_send(header, message):
+    """Send a notification"""
     if toast == "win10":
         toast.show_toast(header, message, duration=5, threaded=True)
     elif toast == "win11":
         win11toast.toast(header, message)
 
+
 def add_to_blacklist(word):
+    """Add specified word to blacklosr"""
     try:
         with open("blacklist.json", "r") as f:
             blacklist = json.load(f)
@@ -96,17 +112,21 @@ def add_to_blacklist(word):
             json.dump(blacklist, f, indent=2)
     return blacklist
 
+
 def load_keymap(keymap):
+    """Load custom keymaps"""
     if keymap is not None:
-        with open(path + "keymaps/" + keymap + ".json", "r") as f:
+        with open("keymaps/" + keymap + ".json", "r") as f:
             keymap_raw = json.load(f)
             return str.maketrans(keymap_raw), keymap_raw
     else:
         return str.maketrans({}), {}
 
+
 def load_custom(custom):
+    """Load custom replacements"""
     if custom is not None:
-        with open(path + "custom/" + custom + ".json", "r") as f:
+        with open("custom/" + custom + ".json", "r") as f:
             return {k.upper(): v for k, v in json.load(f).items()}
     else:
         return {}
@@ -130,15 +150,16 @@ if len(keymaps) < len(languages):
 keymap, raw_keymap = load_keymap(keymaps[lang])
 
 # load custom replacements and remove invalid ones
-custom = [None if x == "None" else x for x in custom if (os.path.exists(path + "custom/" + x + ".json") or x == "None")]
+custom = [None if x == "None" else x for x in custom if (os.path.exists("custom/" + x + ".json") or x == "None")]
 if len(custom) > len(custom):
     custom = keymaps[:len(custom)]
 if len(keymaps) < len(languages):
     custom.append(None)
 custom_repl = load_custom(custom[lang])
 
-# keyboard events
+
 def on_release(key):
+    """Keyboard release events"""
     global enable, past, backspace, skip, keybind_past, cmd, blacklist
     keybind_past = [None] * len(toggle_key)
     if enable:
@@ -147,7 +168,7 @@ def on_release(key):
                 skip = False
             else:
                 if key.char in raw_keymap.values():
-                    key = [x for x in raw_keymap if raw_keymap[x] == letter][0]
+                    key = [x for x in raw_keymap if raw_keymap[x] == key.char][0]
                     past.append(key)
                 else:
                     past.append(key.char)
@@ -171,11 +192,11 @@ def on_release(key):
                         correct = None
                         if debug:
                             print(f'Word "{word}" is found in blacklist')
-                    elif word.upper() in custom_repl.keys():
+                    elif word.upper() in custom_repl:
                         correct = custom_repl[word.upper()]
                         if debug:
                             print(f'Word "{word}" is found in custom replacement')
-                    else:
+                    elif use_aspell:
                         correct = spell_check(word)
                 else:
                     correct = None
@@ -188,9 +209,9 @@ def on_release(key):
                     delete(len(word)+1)
                     # write corrected word
                     if key == pynput.keyboard.Key.space:
-                        type(correct, "space")
+                        type_word(correct, "space")
                     elif key == pynput.keyboard.Key.enter:
-                        type(correct, "enter")
+                        type_word(correct, "enter")
                 elif debug:
                     print(f"Word {word} is OK")
             past = [None] * past_len
@@ -198,6 +219,7 @@ def on_release(key):
         skip = False
 
 def on_press(key):
+    """Keyboard press events"""
     global enable, past, keybind_past, skip, cmd, lang, blacklist, keymap, keymap_raw, custom_repl
     try:
         key = key.char.lower()
@@ -234,9 +256,8 @@ def on_press(key):
             notify_send("Autocorrect", f'Word "{word}" added to blacklist')
 
         if any(x in mod_keys for x in keybind_past[:-1]):
-            # key is not typed
+            # key is not type_wordd
             skip = True
 
 with pynput.keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
     listener.join()
-

@@ -1,14 +1,14 @@
 #!/usr/bin/python3
 
-import time
-import sys
-import subprocess
-import evdev
-from evdev import ecodes
 import configparser
 import json
 import os
+import subprocess
+import sys
 from ast import literal_eval as leval
+
+import evdev
+from evdev import ecodes
 
 config = configparser.ConfigParser()
 special_keycodes = {"[": ecodes.KEY_LEFTBRACE, "]": ecodes.KEY_RIGHTBRACE,
@@ -18,14 +18,16 @@ special_keycodes = {"[": ecodes.KEY_LEFTBRACE, "]": ecodes.KEY_RIGHTBRACE,
                     "`": ecodes.KEY_GRAVE, "-": ecodes.KEY_MINUS,
                     "=": ecodes.KEY_EQUAL, " ": ecodes.KEY_SPACE}
 
+
 def read_key_comb(config, config_key, default):
+    """Read key combinations from config"""
     try:
         if config.get("Main", config_key).upper() == "NONE":
             return [None]
-        else:
-            return [ecodes.ecodes[f"KEY_{x}"] for x in config.get("Main", config_key).upper().split(" + ")]
-    except:
+        return [ecodes.ecodes[f"KEY_{x}"] for x in config.get("Main", config_key).upper().split(" + ")]
+    except Exception:
         return default
+
 
 fail = 0
 for path in ("/etc/autocorrect/", ""):
@@ -61,49 +63,63 @@ if spell_checker == "aspell":
     cmd = ["aspell", "-a", f"--sug-mode={aspell_mode}", f"--lang={languages[0]}"]
 else:
     cmd = ["hunspell", "-a"]
+if aspell_mode == "OFF":
+    use_aspell = False
+else:
+    use_aspell = True
 
 
 def spell_check(word):
+    """Spellcheck a word with aspell and return best correction"""
     aspell = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     output, error = aspell.communicate(word.encode())
     check = output.decode().split("\n")[1]
     if check == "*":
         return None
-    else:
-        try:
-            return check.split(": ")[1].split(", ")[0]
-        except:
-            return None
+    try:
+        return check.split(": ")[1].split(", ")[0]
+    except Exception:
+        return None
+
 
 def delete(ui, num):
+    """Delete number of keys"""
     for _ in range(num):
         press(ui, ecodes.KEY_BACKSPACE)
 
+
 def press(ui, key):
+    """Press a single key"""
     ui.write(ecodes.EV_KEY, key, 1)
     ui.write(ecodes.EV_KEY, key, 0)
     ui.syn()
 
-def type(ui, word, end=None):
+
+def type_word(ui, word, end=None):
+    """Type a word"""
     global keymap
     word = word.translate(keymap)
     for letter in word:
-        if letter in special_keycodes.keys():
+        if letter in special_keycodes:
             press(ui, special_keycodes[letter])
         else:
             press(ui, ecodes.ecodes[f"KEY_{letter}"])
     if end:
         press(ui, end)
 
+
 def notify_send(header, message):
+    """Send a notification"""
     proc = subprocess.Popen("echo | who | awk '{print $1}' | head -n1 ", shell=True, stdout=subprocess.PIPE)
     output, error = proc.communicate()
     user = output.decode().replace("\n", "")
-    cmd = f'sudo -u "{user}" DISPLAY=' + """":$(find /tmp/.X11-unix -type s | grep -Pom1 '/tmp/.X11-unix/X\K\d+$')" "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u '""" + user + """')/bus" /usr/bin/notify-send""" + f" '{header}'" + f" '{message}'"
+    cmd = f'sudo -u "{user}" DISPLAY=' + """":$(find /tmp/.X11-unix -type_word s | grep -Pom1 '/tmp/.X11-unix/X\K\d+$')" "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u '""" + user + """')/bus" /usr/bin/notify-send""" + f" '{header}'" + f" '{message}'"
     subprocess.Popen(cmd, shell=True)
 
+
 def add_to_blacklist(word):
-    if not "home" in os.getcwd() and not os.path.exists("/etc/autocorrect/"):
+    """Add specified word to blacklosr"""
+    if "home" not in os.getcwd() and not os.path.exists("/etc/autocorrect/"):
         path = "/etc/autocorrect/"
         os.mkdir(path)
     else:
@@ -119,7 +135,9 @@ def add_to_blacklist(word):
             json.dump(blacklist, f, indent=2)
     return blacklist
 
+
 def load_keymap(keymap):
+    """Load custom keymaps"""
     if keymap is not None:
         with open(path + "keymaps/" + keymap + ".json", "r") as f:
             keymap_raw = json.load(f)
@@ -127,7 +145,9 @@ def load_keymap(keymap):
     else:
         return str.maketrans({}), {}
 
+
 def load_custom(custom):
+    """Load custom replacements"""
     if custom is not None:
         with open(path + "custom/" + custom + ".json", "r") as f:
             return {k.upper(): v.upper() for k, v in json.load(f).items()}
@@ -174,10 +194,10 @@ else:
 
 
 # keyboard events
-ui = evdev.UInput.from_device(dev, name='virtual-keyboard-device')
+ui = evdev.UInput.from_device(dev, name="virtual-keyboard-device")
 for event in dev.read_loop():
     # release
-    if event.type == ecodes.EV_KEY and event.value == 0:
+    if event.type_word == ecodes.EV_KEY and event.value == 0:
         keybind_past = [None] * len(toggle_key)
         if enable:
             if skip:
@@ -210,11 +230,11 @@ for event in dev.read_loop():
                             correct = None
                             if debug:
                                 print(f'Word "{word}" is found in blacklist')
-                        elif word.upper() in custom_repl.keys():
+                        elif word.upper() in custom_repl:
                             correct = custom_repl[word.upper()]
                             if debug:
                                 print(f'Word "{word}" is found in custom replacement')
-                        else:
+                        elif use_aspell:
                             correct = spell_check(word)
                     else:
                         correct = None
@@ -226,7 +246,7 @@ for event in dev.read_loop():
                         # delete old word
                         delete(ui, len(word)+1)
                         # write corrected word
-                        type(ui, correct, event.code)
+                        type_word(ui, correct, event.code)
                     elif debug:
                         print(f'Word "{word}" is OK')
                 past = [None] * past_len
@@ -234,7 +254,7 @@ for event in dev.read_loop():
             skip = False
 
     # press
-    elif event.type == ecodes.EV_KEY and event.value == 1:
+    elif event.type_word == ecodes.EV_KEY and event.value == 1:
         keybind_past.append(event.code)
         keybind_past.pop(0)
 
@@ -266,8 +286,7 @@ for event in dev.read_loop():
             notify_send("Autocorrect", f'Word "{word}" added to blacklist')
 
         if any(x in mod_keys for x in keybind_past[:-1]):
-            # key is not typed
+            # key is not type_wordd
             skip = True
 
 ui.close()
-
