@@ -197,7 +197,7 @@ else:
 ui = evdev.UInput.from_device(dev, name="virtual-keyboard-device")
 for event in dev.read_loop():
     # release
-    if event.type_word == ecodes.EV_KEY and event.value == 0:
+    if event.type == ecodes.EV_KEY and event.value == 0:
         keybind_past = [None] * len(toggle_key)
         if enable:
             if skip:
@@ -254,7 +254,7 @@ for event in dev.read_loop():
             skip = False
 
     # press
-    elif event.type_word == ecodes.EV_KEY and event.value == 1:
+    elif event.type == ecodes.EV_KEY and event.value == 1:
         keybind_past.append(event.code)
         keybind_past.pop(0)
 
@@ -286,7 +286,7 @@ for event in dev.read_loop():
             notify_send("Autocorrect", f'Word "{word}" added to blacklist')
 
         if any(x in mod_keys for x in keybind_past[:-1]):
-            # key is not type_wordd
+            # key is not typed
             skip = True
 
 ui.close()
